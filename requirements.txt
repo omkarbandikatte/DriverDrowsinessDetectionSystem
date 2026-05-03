@@ -1,0 +1,22 @@
+# Driver Drowsiness Detection System - Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core computer vision
+opencv-python>=4.8.0
+numpy>=1.24.0
+
+# Face detection and landmarks
+dlib>=19.24.0
+scipy>=1.10.0
+
+# Audio alerts
+pygame>=2.5.0
+
+# Twilio for SMS and phone call escalation
+twilio>=8.0.0
+
+# Environment variable management
+python-dotenv>=1.0.0
+
+# Optional: for faster face detection (GPU)
+# cmake>=3.25.0
