@@ -5,8 +5,8 @@
 opencv-python>=4.8.0
 numpy>=1.24.0
 
-# Face detection and landmarks
-dlib>=19.24.0
+# Face detection and landmarks (MediaPipe replaces dlib)
+mediapipe>=0.10.0
 scipy>=1.10.0
 
 # Audio alerts

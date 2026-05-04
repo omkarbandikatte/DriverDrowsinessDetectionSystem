@@ -39,11 +39,6 @@ def parse_args():
              "(e.g., http://192.168.1.5:8080/video). Default: 0"
     )
     parser.add_argument(
-        "--predictor",
-        default="shape_predictor_68_face_landmarks.dat",
-        help="Path to dlib's 68-point shape predictor model file."
-    )
-    parser.add_argument(
         "--alarm",
         default="alarm.wav",
         help="Path to alarm sound file (WAV format)."
@@ -141,7 +136,6 @@ def main():
     print("   DRIVER DROWSINESS DETECTION SYSTEM")
     print("=" * 60)
     print(f"  Video source: {source}")
-    print(f"  Predictor: {args.predictor}")
     print(f"  EAR threshold: {args.ear_threshold}")
     print(f"  Controls: 'q' = quit, 'r' = reset")
     print("=" * 60)
@@ -157,11 +151,9 @@ def main():
 
     print("[INIT] Loading face detector and landmark predictor...")
     try:
-        detector = DrowsinessDetector(predictor_path=args.predictor)
-    except RuntimeError as e:
-        print(f"[ERROR] Cannot load predictor model: {e}")
-        print("  Download it from: "
-              "http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2")
+        detector = DrowsinessDetector()
+    except Exception as e:
+        print(f"[ERROR] Cannot initialize detector: {e}")
         stream.stop()
         return
 
