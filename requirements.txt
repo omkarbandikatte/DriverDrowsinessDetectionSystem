@@ -19,5 +19,10 @@ twilio>=8.0.0
 # Environment variable management
 python-dotenv>=1.0.0
 
+# FastAPI backend
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+websockets>=11.0
+
 # Optional: for faster face detection (GPU)
 # cmake>=3.25.0
