@@ -28,9 +28,7 @@ services:
     rootDir: frontend
     envVars:
       - key: VITE_API_BASE
-        # Set this to the deployed backend URL after first deploy,
-        # e.g. https://driverguard-backend.onrender.com
-        sync: false
+        value: https://driverguard-backend.onrender.com
     routes:
       - type: rewrite
         source: /*

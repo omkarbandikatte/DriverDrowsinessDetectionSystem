@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+// Derive WebSocket base: https → wss, http → ws
+const WS_BASE = API_BASE.replace(/^https/, 'wss').replace(/^http/, 'ws');
 
 function App() {
   // --- State ---
@@ -24,7 +26,7 @@ function App() {
   const connectWebSocket = useCallback(() => {
     if (wsRef.current) wsRef.current.close();
 
-    const ws = new WebSocket(`ws://localhost:8000/ws/metrics`);
+    const ws = new WebSocket(`${WS_BASE}/ws/metrics`);
     ws.onmessage = (event) => {
       try {
         setMetrics(JSON.parse(event.data));
