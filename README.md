@@ -6,6 +6,7 @@ A real-time driver drowsiness detection system built with **computer vision** an
 
 ## Table of Contents
 
+- [Screenshots](#screenshots)
 - [Quick Start](#quick-start)
 - [Introduction](#introduction)
 - [Objective](#objective)
@@ -28,6 +29,32 @@ A real-time driver drowsiness detection system built with **computer vision** an
 - [Controls](#controls)
 - [Troubleshooting](#troubleshooting)
 - [Dependencies](#dependencies)
+
+---
+
+## Screenshots
+
+### Dashboard — Idle State
+
+The web dashboard on load, showing the camera preview placeholder, video source controls, real-time metric cards (EAR, MAR, consecutive frame counter, drowsy duration), and the escalation timeline.
+
+![Dashboard idle state](docs/screenshots/01-dashboard-overview.png)
+
+---
+
+### IP Camera Input
+
+Switching the video source to an Android IP Webcam URL for remote camera streams.
+
+![IP Camera source tab](docs/screenshots/02-ip-camera-source.png)
+
+---
+
+### Detection Settings Panel
+
+EAR/MAR threshold sliders and feature toggles (Alarm Sound, SMS Escalation, Call Escalation).
+
+![Detection settings panel](docs/screenshots/03-settings-panel.png)
 
 ---
 
