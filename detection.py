@@ -7,6 +7,7 @@ Uses MediaPipe Face Mesh to:
 - Detect yawning via Mouth Aspect Ratio (MAR)
 """
 
+import os
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -17,6 +18,9 @@ from scipy.spatial import distance as dist
 EAR_THRESHOLD = 0.25          # Below this = eyes closed
 MAR_THRESHOLD = 0.75          # Above this = yawning
 CONSEC_FRAMES_THRESHOLD = 20  # Frames below EAR to trigger drowsiness
+
+# --- MediaPipe Face Landmarker model path ---
+_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'face_landmarker.task')
 
 # --- MediaPipe Face Mesh landmark indices ---
 # Left eye: 6 key points for EAR calculation
@@ -32,18 +36,25 @@ class DrowsinessDetector:
 
     def __init__(self, predictor_path=None):
         """
-        Initialize the detector with MediaPipe Face Mesh.
+        Initialize the detector with MediaPipe FaceLandmarker (Tasks API).
 
         Args:
             predictor_path: Unused (kept for API compatibility).
         """
-        self.mp_face_mesh = mp.solutions.face_mesh
-        self.face_mesh = self.mp_face_mesh.FaceMesh(
-            max_num_faces=1,
-            refine_landmarks=True,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
+        BaseOptions = mp.tasks.BaseOptions
+        FaceLandmarker = mp.tasks.vision.FaceLandmarker
+        FaceLandmarkerOptions = mp.tasks.vision.FaceLandmarkerOptions
+        VisionRunningMode = mp.tasks.vision.RunningMode
+
+        options = FaceLandmarkerOptions(
+            base_options=BaseOptions(model_asset_path=_MODEL_PATH),
+            running_mode=VisionRunningMode.IMAGE,
+            num_faces=1,
+            min_face_detection_confidence=0.5,
+            min_face_presence_confidence=0.5,
+            min_tracking_confidence=0.5,
         )
+        self.face_landmarker = FaceLandmarker.create_from_options(options)
 
         # Frame counter for consecutive eye closures
         self.frame_counter = 0
@@ -124,7 +135,8 @@ class DrowsinessDetector:
         """
         h, w = frame.shape[:2]
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = self.face_mesh.process(rgb_frame)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+        results = self.face_landmarker.detect(mp_image)
 
         result = {
             'is_drowsy': self.is_drowsy,
@@ -135,11 +147,11 @@ class DrowsinessDetector:
             'face_detected': False
         }
 
-        if not results.multi_face_landmarks:
+        if not results.face_landmarks:
             return result
 
         result['face_detected'] = True
-        landmarks = results.multi_face_landmarks[0].landmark
+        landmarks = results.face_landmarks[0]
 
         def get_points(indices):
             return np.array(

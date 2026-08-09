@@ -6,6 +6,7 @@ A real-time driver drowsiness detection system built with **computer vision** an
 
 ## Table of Contents
 
+- [Quick Start](#quick-start)
 - [Introduction](#introduction)
 - [Objective](#objective)
 - [System Architecture](#system-architecture)
@@ -27,6 +28,38 @@ A real-time driver drowsiness detection system built with **computer vision** an
 - [Controls](#controls)
 - [Troubleshooting](#troubleshooting)
 - [Dependencies](#dependencies)
+
+---
+
+## Quick Start
+
+Run the entire system (backend + frontend) with a single command:
+
+```bash
+bash start.sh
+```
+
+This will:
+1. Activate your virtual environment (`venv/` or `.venv/`) if one exists.
+2. Install Python dependencies (`pip install -r requirements.txt`) if missing.
+3. Install frontend npm dependencies if `frontend/node_modules/` is absent.
+4. Start the **FastAPI backend** on `http://localhost:8000`.
+5. Start the **React frontend** on `http://localhost:5173`.
+6. Open the dashboard in your default browser automatically.
+
+Press **Ctrl+C** to shut down both servers cleanly.
+
+**Options:**
+
+| Flag | Description |
+|------|-------------|
+| `--no-browser` | Skip automatic browser launch |
+
+```bash
+bash start.sh --no-browser
+```
+
+> **Prerequisites:** Python 3.8+, Node.js 18+, and a virtual environment with dependencies installed (see [Installation](#installation)).
 
 ---
 
@@ -126,6 +159,7 @@ The system follows a modular, layered architecture comprising a **computer visio
 
 ```
 DriverDrowsinessDetectionSystem/
+├── start.sh                # Single-command launcher (backend + frontend)
 ├── main.py                 # CLI entry point — orchestrates all modules
 ├── server.py               # FastAPI backend — REST API, MJPEG stream, WebSocket
 ├── detection.py            # Core CV logic — MediaPipe Face Mesh, EAR, MAR
@@ -472,6 +506,16 @@ cd ..
 ---
 
 ## Usage
+
+### Single-Command Launch (Recommended)
+
+```bash
+bash start.sh
+```
+
+Starts the FastAPI backend and React frontend together. Open `http://localhost:5173` in your browser.
+
+---
 
 ### CLI Mode (with OpenCV window)
 
