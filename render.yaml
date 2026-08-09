@@ -1,0 +1,37 @@
+services:
+  # ── FastAPI Backend ────────────────────────────────────────────────────────
+  - type: web
+    name: driverguard-backend
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+      # Twilio credentials — set these in the Render dashboard
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+      - key: TWILIO_TO_NUMBER
+        sync: false
+
+  # ── React Frontend (Static Site) ──────────────────────────────────────────
+  - type: web
+    name: driverguard-frontend
+    runtime: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    rootDir: frontend
+    envVars:
+      - key: VITE_API_BASE
+        # Set this to the deployed backend URL after first deploy,
+        # e.g. https://driverguard-backend.onrender.com
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
