@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
-// Derive WebSocket base: https → wss, http → ws
+const API_BASE = window.location.hostname === 'localhost'
+  ? 'http://localhost:8000'
+  : 'https://driverguard-backend.onrender.com';
 const WS_BASE = API_BASE.replace(/^https/, 'wss').replace(/^http/, 'ws');
 
 function App() {
