@@ -1,6 +1,61 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 
+function IpCameraHelpModal({ onClose }) {
+  const steps = [
+    {
+      icon: '📲',
+      title: 'Install IP Webcam',
+      body: <>Download <strong>IP Webcam</strong> (Android) from the <a href="https://play.google.com/store/apps/details?id=com.pas.webcam" target="_blank" rel="noreferrer">Play Store</a>, or <strong>EpocCam / DroidCam</strong> on iOS.</>
+    },
+    {
+      icon: '📶',
+      title: 'Same Wi-Fi network',
+      body: 'Connect both your phone and laptop to the same Wi-Fi network.'
+    },
+    {
+      icon: '▶',
+      title: 'Start the server',
+      body: 'Open the app and tap "Start server" (scroll to the bottom in IP Webcam).'
+    },
+    {
+      icon: '🔗',
+      title: 'Copy the stream URL',
+      body: <>The app shows an address like <code>http://192.168.1.5:8080</code>. Append <code>/video</code> → <code>http://192.168.1.5:8080/video</code></>
+    },
+    {
+      icon: '📋',
+      title: 'Paste & Start',
+      body: 'Paste that URL into the IP Camera URL field below and click Start Monitoring.'
+    },
+  ];
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal__header">
+          <h2 className="modal__title">📱 How to get your IP Camera URL</h2>
+          <button className="modal__close" onClick={onClose}>✕</button>
+        </div>
+        <ol className="modal__steps">
+          {steps.map((s, i) => (
+            <li key={i} className="modal__step">
+              <span className="modal__step-icon">{s.icon}</span>
+              <div>
+                <strong>{s.title}</strong>
+                <p>{s.body}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <div className="modal__footer">
+          <p>⚠ For the <strong>cloud demo</strong>, your phone stream must be publicly reachable. Use <a href="https://ngrok.com" target="_blank" rel="noreferrer">ngrok</a>: <code>ngrok http 8080</code> and paste the <code>https://…ngrok-free.app/video</code> URL.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const API_BASE = window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
   : 'https://driverguard-backend.onrender.com';
@@ -21,6 +76,7 @@ function App() {
   const [callEnabled, setCallEnabled] = useState(true);
   const [metrics, setMetrics] = useState({});
   const [error, setError] = useState('');
+  const [showHelp, setShowHelp] = useState(false);
 
   const wsRef = useRef(null);
 
@@ -144,6 +200,7 @@ function App() {
 
   return (
     <div className="app">
+      {showHelp && <IpCameraHelpModal onClose={() => setShowHelp(false)} />}
       {/* --- Header --- */}
       <header className="header">
         <div className="header__brand">
@@ -241,7 +298,12 @@ function App() {
               </div>
             ) : (
               <div className="source-field">
-                <label className="field-label">IP Camera URL</label>
+                <div className="field-label-row">
+                  <label className="field-label">IP Camera URL</label>
+                  <button className="help-link" onClick={() => setShowHelp(true)}>
+                    How to get URL?
+                  </button>
+                </div>
                 <input
                   className="input-field"
                   type="text"
