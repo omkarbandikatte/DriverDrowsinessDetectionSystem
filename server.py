@@ -8,9 +8,11 @@ Provides:
 """
 
 import asyncio
+import base64
 import time
 import threading
 import cv2
+import numpy as np
 from typing import Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
@@ -297,6 +299,42 @@ async def ws_metrics(websocket: WebSocket):
         pass
     except Exception:
         pass
+
+
+@app.websocket("/ws/stream")
+async def ws_stream(websocket: WebSocket):
+    """Receive JPEG frames from browser webcam, return annotated frame + metrics."""
+    await websocket.accept()
+    detector = DrowsinessDetector()
+    escalation_mgr = EscalationManager()
+    try:
+        while True:
+            data = await websocket.receive_bytes()
+            nparr = np.frombuffer(data, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if frame is None:
+                continue
+
+            result = detector.detect(frame)
+            escalation_mgr.update(result['is_drowsy'])
+            result['escalation_level'] = escalation_mgr.current_level
+            result['drowsy_duration'] = (
+                round(time.time() - escalation_mgr.drowsy_start_time, 1)
+                if escalation_mgr.drowsy_start_time else 0
+            )
+            result['sms_sent'] = escalation_mgr.sms_sent
+            result['call_made'] = escalation_mgr.call_made
+
+            _, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
+            result['frame'] = base64.b64encode(jpeg.tobytes()).decode('utf-8')
+            await websocket.send_json(result)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

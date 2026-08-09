@@ -180,6 +180,13 @@
   color: var(--text-primary);
 }
 
+.card__hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: -4px 0 4px;
+}
+
 .source-tabs {
   display: flex;
   gap: 8px;
