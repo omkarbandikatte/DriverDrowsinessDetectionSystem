@@ -5,12 +5,13 @@ const API_BASE = window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
   : 'https://driverguard-backend.onrender.com';
 const WS_BASE = API_BASE.replace(/^https/, 'wss').replace(/^http/, 'ws');
+const IS_CLOUD = window.location.hostname !== 'localhost';
 
 function App() {
   // --- State ---
   const [isRunning, setIsRunning] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [sourceType, setSourceType] = useState('system'); // 'system' | 'ip'
+  const [sourceType, setSourceType] = useState(IS_CLOUD ? 'ip' : 'system');
   const [cameraIndex, setCameraIndex] = useState('0');
   const [ipUrl, setIpUrl] = useState('');
   const [earThreshold, setEarThreshold] = useState(0.25);
@@ -205,7 +206,8 @@ function App() {
               <button
                 className={`source-tab ${sourceType === 'system' ? 'source-tab--active' : ''}`}
                 onClick={() => setSourceType('system')}
-                disabled={isRunning}
+                disabled={isRunning || IS_CLOUD}
+                title={IS_CLOUD ? 'System camera is not available on the cloud deployment' : ''}
               >
                 💻 System Camera
               </button>
@@ -217,6 +219,11 @@ function App() {
                 📱 IP Camera
               </button>
             </div>
+            {IS_CLOUD && (
+              <p className="error-text" style={{ marginTop: '8px', color: 'var(--accent-yellow)' }}>
+                ⚠ Cloud deployment: only IP Camera is supported. Use the <a href="https://play.google.com/store/apps/details?id=com.pas.webcam" target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>IP Webcam</a> app and enter your phone&rsquo;s stream URL below.
+              </p>
+            )}
 
             {sourceType === 'system' ? (
               <div className="source-field">
