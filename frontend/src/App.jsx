@@ -1,17 +1,74 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 
+function IpCameraHelpModal({ onClose }) {
+  const steps = [
+    {
+      icon: '📲',
+      title: 'Install IP Webcam',
+      body: <>Download <strong>IP Webcam</strong> (Android) from the <a href="https://play.google.com/store/apps/details?id=com.pas.webcam" target="_blank" rel="noreferrer">Play Store</a>, or <strong>EpocCam / DroidCam</strong> on iOS.</>
+    },
+    {
+      icon: '📶',
+      title: 'Same Wi-Fi network',
+      body: 'Connect both your phone and laptop to the same Wi-Fi network.'
+    },
+    {
+      icon: '▶',
+      title: 'Start the server',
+      body: 'Open the app and tap "Start server" (scroll to the bottom in IP Webcam).'
+    },
+    {
+      icon: '🔗',
+      title: 'Copy the stream URL',
+      body: <>The app shows an address like <code>http://192.168.1.5:8080</code>. Append <code>/video</code> → <code>http://192.168.1.5:8080/video</code></>
+    },
+    {
+      icon: '📋',
+      title: 'Paste & Start',
+      body: 'Paste that URL into the IP Camera URL field below and click Start Monitoring.'
+    },
+  ];
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal__header">
+          <h2 className="modal__title">📱 How to get your IP Camera URL</h2>
+          <button className="modal__close" onClick={onClose}>✕</button>
+        </div>
+        <ol className="modal__steps">
+          {steps.map((s, i) => (
+            <li key={i} className="modal__step">
+              <span className="modal__step-icon">{s.icon}</span>
+              <div>
+                <strong>{s.title}</strong>
+                <p>{s.body}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <div className="modal__footer">
+          <p>⚠ For the <strong>cloud demo</strong>, your phone stream must be publicly reachable. Use <a href="https://ngrok.com" target="_blank" rel="noreferrer">ngrok</a>: <code>ngrok http 8080</code> and paste the <code>https://…ngrok-free.app/video</code> URL.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const API_BASE = window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
   : 'https://driverguard-backend.onrender.com';
 const WS_BASE = API_BASE.replace(/^https/, 'wss').replace(/^http/, 'ws');
+const IS_CLOUD = window.location.hostname !== 'localhost';
 
 function App() {
   // --- State ---
   const [isRunning, setIsRunning] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [liveFrame, setLiveFrame] = useState(null);
+  const [sourceType, setSourceType] = useState(IS_CLOUD ? 'ip' : 'system');
+  const [cameraIndex, setCameraIndex] = useState('0');
+  const [ipUrl, setIpUrl] = useState('');
   const [earThreshold, setEarThreshold] = useState(0.25);
   const [marThreshold, setMarThreshold] = useState(0.75);
   const [alarmEnabled, setAlarmEnabled] = useState(true);
@@ -19,111 +76,94 @@ function App() {
   const [callEnabled, setCallEnabled] = useState(true);
   const [metrics, setMetrics] = useState({});
   const [error, setError] = useState('');
-  const [fps, setFps] = useState(0);
+  const [showHelp, setShowHelp] = useState(false);
 
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const streamWsRef = useRef(null);
-  const captureIntervalRef = useRef(null);
-  const lastAlarmRef = useRef(null);
-  const frameCountRef = useRef(0);
+  const wsRef = useRef(null);
 
-  // Client-side FPS counter
+  // --- WebSocket for live metrics ---
+  const connectWebSocket = useCallback(() => {
+    if (wsRef.current) wsRef.current.close();
+
+    const ws = new WebSocket(`${WS_BASE}/ws/metrics`);
+    ws.onmessage = (event) => {
+      try {
+        setMetrics(JSON.parse(event.data));
+      } catch (e) { /* ignore parse errors */ }
+    };
+    ws.onerror = () => {};
+    ws.onclose = () => {
+      // Reconnect after 2s if still running
+      setTimeout(() => {
+        if (isRunning) connectWebSocket();
+      }, 2000);
+    };
+    wsRef.current = ws;
+  }, [isRunning]);
+
   useEffect(() => {
-    const id = setInterval(() => {
-      setFps(frameCountRef.current);
-      frameCountRef.current = 0;
-    }, 1000);
-    return () => clearInterval(id);
-  }, []);
+    if (isRunning) {
+      connectWebSocket();
+    } else if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    return () => {
+      if (wsRef.current) wsRef.current.close();
+    };
+  }, [isRunning, connectWebSocket]);
 
-  // --- Browser alarm via Web Audio API ---
-  const playAlarm = useCallback((level) => {
-    if (!alarmEnabled) return;
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'square';
-      osc.frequency.value = level >= 2 ? 1100 : 880;
-      gain.gain.setValueAtTime(level >= 2 ? 0.25 : 0.12, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.45);
-    } catch (e) { /* Audio not available */ }
-  }, [alarmEnabled]);
-
-  // --- Monitoring control ---
+  // --- API calls ---
   const startMonitoring = async () => {
     setIsLoading(true);
     setError('');
+    const source = sourceType === 'system' ? cameraIndex : ipUrl;
+    if (sourceType === 'ip' && !ipUrl.trim()) {
+      setError('Please enter an IP camera URL');
+      setIsLoading(false);
+      return;
+    }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480, facingMode: 'user' },
+      const res = await fetch(`${API_BASE}/api/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source,
+          ear_threshold: earThreshold,
+          mar_threshold: marThreshold,
+        }),
       });
-      videoRef.current.srcObject = stream;
-      await videoRef.current.play();
-
-      const canvas = canvasRef.current;
-      canvas.width = 640;
-      canvas.height = 480;
-      const ctx2d = canvas.getContext('2d');
-
-      const ws = new WebSocket(`${WS_BASE}/ws/stream`);
-      streamWsRef.current = ws;
-
-      ws.onopen = () => {
-        setIsRunning(true);
-        setIsLoading(false);
-        captureIntervalRef.current = setInterval(() => {
-          if (ws.readyState !== WebSocket.OPEN) return;
-          ctx2d.drawImage(videoRef.current, 0, 0, 640, 480);
-          canvas.toBlob(blob => {
-            if (blob && ws.readyState === WebSocket.OPEN) ws.send(blob);
-          }, 'image/jpeg', 0.75);
-        }, 100); // 10 fps
-      };
-
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.frame) setLiveFrame(`data:image/jpeg;base64,${data.frame}`);
-        setMetrics(data);
-        frameCountRef.current += 1;
-        if (data.is_drowsy) {
-          const now = Date.now();
-          if (!lastAlarmRef.current || now - lastAlarmRef.current > 2000) {
-            playAlarm(data.escalation_level || 1);
-            lastAlarmRef.current = now;
-          }
-        }
-      };
-
-      ws.onerror = () => setError('Connection error. Retrying...');
-      ws.onclose = () => clearInterval(captureIntervalRef.current);
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || 'Failed to start');
+      }
+      setIsRunning(true);
     } catch (err) {
-      const msg = err.name === 'NotAllowedError'
-        ? 'Camera access denied. Please allow camera permission and try again.'
-        : err.message;
-      setError(msg);
+      setError(err.message);
+    } finally {
       setIsLoading(false);
     }
   };
 
-  const stopMonitoring = () => {
-    clearInterval(captureIntervalRef.current);
-    if (streamWsRef.current) { streamWsRef.current.close(); streamWsRef.current = null; }
-    if (videoRef.current?.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach(t => t.stop());
-      videoRef.current.srcObject = null;
+  const stopMonitoring = async () => {
+    setIsLoading(true);
+    try {
+      await fetch(`${API_BASE}/api/stop`, { method: 'POST' });
+      setIsRunning(false);
+      setMetrics({});
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
     }
-    setIsRunning(false);
-    setLiveFrame(null);
-    setMetrics({});
   };
 
-  const resetState = () => setMetrics({});
+  const resetState = async () => {
+    try {
+      await fetch(`${API_BASE}/api/reset`, { method: 'POST' });
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   const updateSettings = async (key, value) => {
     try {
@@ -143,6 +183,7 @@ function App() {
   const faceDetected = metrics.face_detected ?? false;
   const escalationLevel = metrics.escalation_level ?? 0;
   const drowsyDuration = metrics.drowsy_duration ?? 0;
+  const fps = metrics.fps ?? 0;
 
   const statusLabel =
     !isRunning ? 'OFFLINE' :
@@ -159,9 +200,7 @@ function App() {
 
   return (
     <div className="app">
-      {/* Hidden elements for browser webcam capture */}
-      <video ref={videoRef} style={{ display: 'none' }} playsInline muted />
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
+      {showHelp && <IpCameraHelpModal onClose={() => setShowHelp(false)} />}
       {/* --- Header --- */}
       <header className="header">
         <div className="header__brand">
@@ -204,7 +243,7 @@ function App() {
             <div className="video-card__feed">
               {isRunning ? (
                 <img
-                  src={liveFrame}
+                  src={`${API_BASE}/api/video-feed`}
                   alt="Live camera feed"
                   className="video-card__img"
                 />
@@ -217,10 +256,66 @@ function App() {
             </div>
           </div>
 
-          {/* Controls */}
+          {/* Source Selection */}
           <div className="card source-card animate-in">
-            <h3 className="card__title">📡 Browser Webcam</h3>
-            <p className="card__hint">Uses your device camera directly — works on any device, no setup needed.</p>
+            <h3 className="card__title">📡 Video Source</h3>
+            <div className="source-tabs">
+              <button
+                className={`source-tab ${sourceType === 'system' ? 'source-tab--active' : ''}`}
+                onClick={() => setSourceType('system')}
+                disabled={isRunning || IS_CLOUD}
+                title={IS_CLOUD ? 'System camera is not available on the cloud deployment' : ''}
+              >
+                💻 System Camera
+              </button>
+              <button
+                className={`source-tab ${sourceType === 'ip' ? 'source-tab--active' : ''}`}
+                onClick={() => setSourceType('ip')}
+                disabled={isRunning}
+              >
+                📱 IP Camera
+              </button>
+            </div>
+            {IS_CLOUD && (
+              <p className="error-text" style={{ marginTop: '8px', color: 'var(--accent-yellow)' }}>
+                ⚠ Cloud deployment: only IP Camera is supported. Use the <a href="https://play.google.com/store/apps/details?id=com.pas.webcam" target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>IP Webcam</a> app and enter your phone&rsquo;s stream URL below.
+              </p>
+            )}
+
+            {sourceType === 'system' ? (
+              <div className="source-field">
+                <label className="field-label">Camera Index</label>
+                <select
+                  className="select-field"
+                  value={cameraIndex}
+                  onChange={(e) => setCameraIndex(e.target.value)}
+                  disabled={isRunning}
+                >
+                  <option value="0">Camera 0 (Default)</option>
+                  <option value="1">Camera 1</option>
+                  <option value="2">Camera 2</option>
+                </select>
+              </div>
+            ) : (
+              <div className="source-field">
+                <div className="field-label-row">
+                  <label className="field-label">IP Camera URL</label>
+                  <button className="help-link" onClick={() => setShowHelp(true)}>
+                    How to get URL?
+                  </button>
+                </div>
+                <input
+                  className="input-field"
+                  type="text"
+                  placeholder="http://192.168.1.5:8080/video"
+                  value={ipUrl}
+                  onChange={(e) => setIpUrl(e.target.value)}
+                  disabled={isRunning}
+                />
+              </div>
+            )}
+
+            {/* Action Buttons */}
             <div className="source-actions">
               {!isRunning ? (
                 <button
@@ -228,15 +323,24 @@ function App() {
                   onClick={startMonitoring}
                   disabled={isLoading}
                 >
-                  {isLoading ? '⏳ Requesting camera...' : '▶ Start Monitoring'}
+                  {isLoading ? '⏳ Connecting...' : '▶ Start Monitoring'}
                 </button>
               ) : (
                 <>
-                  <button className="btn btn--danger" onClick={stopMonitoring}>⏹ Stop</button>
-                  <button className="btn btn--ghost" onClick={resetState}>↺ Reset</button>
+                  <button
+                    className="btn btn--danger"
+                    onClick={stopMonitoring}
+                    disabled={isLoading}
+                  >
+                    ⏹ Stop
+                  </button>
+                  <button className="btn btn--ghost" onClick={resetState}>
+                    ↺ Reset
+                  </button>
                 </>
               )}
             </div>
+
             {error && <p className="error-text">⚠ {error}</p>}
           </div>
         </section>
