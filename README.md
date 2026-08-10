@@ -58,6 +58,15 @@ EAR/MAR threshold sliders and feature toggles (Alarm Sound, SMS Escalation, Call
 
 ---
 
+> [!WARNING]
+> **This system must be run locally — do not use the deployed URL.**
+>
+> The backend server fetches the video stream directly from the camera source (local webcam or IP Webcam URL). A deployed cloud backend (e.g., on Render) **cannot reach a local network IP address** like `192.168.x.x` — it will fail to open the video source.
+>
+> Always run `bash start.sh` on a machine that is on the **same Wi-Fi network** as the camera device, and open `http://localhost:5173` in your browser.
+
+---
+
 ## Quick Start
 
 Run the entire system (backend + frontend) with a single command:

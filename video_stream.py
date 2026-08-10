@@ -24,7 +24,14 @@ class VideoStream:
 
     def start(self):
         """Open the video capture stream."""
-        self.cap = cv2.VideoCapture(self.source)
+        source = self.source
+        if isinstance(source, str):
+            # IP Webcam requires http:// and the /video endpoint
+            if source.startswith("https://"):
+                source = "http://" + source[len("https://"):]
+            if source.startswith("http://") and not source.endswith("/video"):
+                source = source.rstrip("/") + "/video"
+        self.cap = cv2.VideoCapture(source)
 
         # Optimize buffer size for real-time performance
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
